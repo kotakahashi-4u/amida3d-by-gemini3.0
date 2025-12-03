@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Laser Amida 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050510;
+            font-family: 'Zen Kaku Gothic New', sans-serif;
+            color: white;
+            user-select: none;
+        }
+
+        /* Cyberpunk UI Elements */
+        .glass-panel {
+            background: rgba(10, 15, 30, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .neon-text {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 20px #00f;
+        }
+
+        .btn-cyber {
+            background: linear-gradient(45deg, #001133, #004455);
+            border: 1px solid #0ff;
+            color: #0ff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-family: 'Orbitron', sans-serif;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .btn-cyber:hover {
+            background: #0ff;
+            color: #000;
+            box-shadow: 0 0 20px #0ff;
+        }
+
+        .btn-cyber:active {
+            transform: scale(0.95);
+        }
+
+        /* Secondary Button (Back/Reset) */
+        .btn-secondary {
+            background: linear-gradient(45deg, #1a1a2e, #16213e);
+            border: 1px solid #4a5568;
+            color: #a0aec0;
+        }
+        .btn-secondary:hover {
+            border-color: #cbd5e0;
+            color: #fff;
+            box-shadow: 0 0 10px rgba(255,255,255,0.2);
+        }
+
+        /* Start Button Special */
+        .btn-start {
+            background: linear-gradient(45deg, #330000, #ff0055);
+            border-color: #ff0055;
+            color: #ff0055;
+        }
+        .btn-start:hover {
+            background: #ff0055;
+            color: white;
+            box-shadow: 0 0 30px #ff0055;
+        }
+
+        /* Floating Labels */
+        .label-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+        
+        .world-label {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+            text-align: center;
+            opacity: 0.9;
+            transition: opacity 0.3s;
+        }
+
+        .player-name {
+            font-weight: bold;
+            text-shadow: 0 0 5px black;
+            padding: 2px 8px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .prize-label {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: #ffd700;
+            text-shadow: 0 0 10px #ffaa00;
+            opacity: 0; /* Hidden initially */
+            transform: translate(-50%, -50%) scale(0);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .prize-label.revealed {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        /* Animations */
+        @keyframes pulse {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+        .animate-pulse-slow {
+            animation: pulse 3s infinite;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        input[type="text"], input[type="number"] {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #444;
+            color: white;
+            padding: 0.5rem;
+            outline: none;
+        }
+        input:focus {
+            border-color: #0ff;
+        }
+
+        /* Scrollbar */
+        .custom-scroll::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: #000; 
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #333; 
+            border-radius: 4px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: #555; 
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Canvas Container -->
+    <div id="canvas-container" class="absolute inset-0 z-0"></div>
+
+    <!-- HTML Overlay for Labels -->
+    <div id="labels-layer" class="label-container z-10"></div>
+
+    <!-- UI: Setup Screen -->
+    <div id="setup-panel" class="absolute inset-0 z-20 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div class="glass-panel p-8 rounded-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto custom-scroll">
+            <h1 class="text-4xl md:text-5xl neon-text text-center mb-8">CYBER AMIDA 3D</h1>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Config -->
+                <div>
+                    <h2 class="text-xl text-cyan-400 mb-4 border-b border-cyan-900 pb-2">CONFIGURATION</h2>
+                    <div class="mb-4">
+                        <label class="block text-sm text-gray-400 mb-1">くじの本数 (3-20)</label>
+                        <input type="number" id="input-legs" value="6" min="3" max="20" class="w-full rounded bg-black/50 border border-gray-600 text-cyan-300 text-lg font-bold">
+                    </div>
+                    <div id="error-message" class="hidden p-3 mb-4 rounded bg-red-900/50 border border-red-500 text-red-200 text-sm">
+                        <!-- Error text here -->
+                    </div>
+                </div>
+
+                <!-- Prizes -->
+                <div class="flex flex-col h-full">
+                    <div class="flex justify-between items-center mb-2 border-b border-pink-900 pb-2">
+                        <h2 class="text-xl text-pink-400">PRIZES</h2>
+                        <button id="btn-add-prize" class="text-xs bg-pink-900/50 hover:bg-pink-700 text-pink-100 px-2 py-1 rounded border border-pink-500">
+                            + 追加
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-400 mb-2">入力がない枠は「スカ」になります</p>
+                    
+                    <!-- Dynamic List Container -->
+                    <div id="prizes-list" class="flex-grow overflow-y-auto custom-scroll max-h-[200px] pr-2 space-y-2">
+                        <!-- JavaScript will populate this -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 flex justify-center">
+                <button id="btn-init" class="btn-cyber text-xl py-3 px-12 rounded-full font-bold">
+                    GENERATE GRID
+                </button>
+            </div>
+            <p class="mt-4 text-center text-gray-500 text-xs">※ 音が出ます。音量にご注意ください。</p>
+        </div>
+    </div>
+
+    <!-- UI: Edit & Controls -->
+    <div id="control-panel" class="absolute bottom-0 left-0 w-full z-20 p-4 pointer-events-none hidden">
+        <div class="flex flex-col md:flex-row justify-between items-end gap-4 pointer-events-auto">
+            
+            <!-- Instructions & Back Button -->
+            <div class="flex gap-2 items-stretch">
+                <button id="btn-back" class="btn-secondary px-4 rounded-lg flex items-center justify-center" title="設定に戻る">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+                </button>
+                <div class="glass-panel p-4 rounded-lg flex-grow">
+                    <div id="status-text" class="text-cyan-400 font-bold mb-1">EDIT MODE</div>
+                    <div id="instruction-text" class="text-sm text-gray-300">線をタップして横線を追加/削除してください。</div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-2 md:gap-4 flex-wrap justify-end">
+                <button id="btn-add-random" class="btn-cyber py-2 px-4 md:px-6 rounded shadow-lg bg-black/50">
+                    ランダム追加
+                </button>
+                <button id="btn-reset-lines" class="btn-secondary py-2 px-4 md:px-6 rounded shadow-lg bg-black/50 text-red-300 hover:text-red-100 border-red-900/50">
+                    クリア
+                </button>
+                <button id="btn-fix" class="btn-cyber py-2 px-6 md:px-8 rounded shadow-lg text-lg font-bold bg-black/80">
+                    決定 & プレイヤー選択
+                </button>
+                <button id="btn-start" class="btn-start py-2 px-8 md:px-12 rounded shadow-lg text-xl font-bold hidden animate-pulse-slow">
+                    START AMIDA
+                </button>
+                <button id="btn-restart" class="btn-cyber py-2 px-6 rounded shadow-lg hidden">
+                    RETRY
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Player Name Modal -->
+    <div id="player-modal" class="absolute inset-0 z-30 flex items-center justify-center bg-black/80 backdrop-blur hidden">
+        <div class="glass-panel p-6 rounded-lg w-80">
+            <h3 class="text-xl text-cyan-400 mb-4">エントリー名を入力</h3>
+            <input type="text" id="input-player-name" class="w-full mb-4 text-lg" placeholder="名前を入力..." maxlength="8">
+            <div class="flex justify-end gap-2">
+                <button id="btn-cancel-name" class="text-gray-400 hover:text-white px-4 py-2">キャンセル</button>
+                <button id="btn-confirm-name" class="btn-cyber px-6 py-2 rounded">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Audio System ---
+        class SoundManager {
+            constructor() {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                this.masterGain = this.ctx.createGain();
+                this.masterGain.gain.value = 0.3; // volume limit
+                this.masterGain.connect(this.ctx.destination);
+                this.enabled = true;
+            }
+
+            playTone(freq, type, duration, vol = 1) {
+                if (!this.enabled || this.ctx.state === 'suspended') this.ctx.resume();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start();
+                osc.stop(this.ctx.currentTime + duration);
+            }
+
+            playClick() { this.playTone(800, 'sine', 0.1, 0.5); }
+            playAddLine() { this.playTone(1200, 'triangle', 0.1, 0.3); }
+            playDeleteLine() { this.playTone(400, 'sawtooth', 0.15, 0.3); }
+            
+            playStart() {
+                // Fanfare-ish
+                const now = this.ctx.currentTime;
+                [440, 554, 659, 880].forEach((f, i) => {
+                    setTimeout(() => this.playTone(f, 'square', 0.6, 0.4), i * 100);
+                });
+            }
+
+            playMove(pitchMod = 0) {
+                // Laser swish
+                if (!this.enabled) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200 + pitchMod, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(800 + pitchMod, this.ctx.currentTime + 0.1);
+                
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
+
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+
+            playWin() {
+                // Explosion / Success
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                // Sweep down
+                osc.frequency.setValueAtTime(1000, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 1.5);
+                
+                gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 1.5);
+
+                osc.connect(gain);
+                gain.connect(this.masterGain);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 1.5);
+            }
+        }
+
+        const audio = new SoundManager();
+
+        // --- Game Logic ---
+        class AmidaCore {
+            constructor(legs, height) {
+                this.legs = legs;
+                this.height = height;
+                this.bars = []; // { col: index, y: 0-1 }
+            }
+
+            addBar(col, y) {
+                // Prevent overlap (simple proximity check)
+                const exists = this.bars.some(b => b.col === col && Math.abs(b.y - y) < 0.02);
+                if (!exists) {
+                    this.bars.push({ col, y, id: Math.random().toString() });
+                    return true;
+                }
+                return false;
+            }
+
+            removeBarNear(col, y) {
+                const index = this.bars.findIndex(b => b.col === col && Math.abs(b.y - y) < 0.05);
+                if (index !== -1) {
+                    this.bars.splice(index, 1);
+                    return true;
+                }
+                return false;
+            }
+
+            clearBars() {
+                this.bars = [];
+            }
+
+            // 初期生成用（リセットして生成）
+            randomize(density = 0.3) {
+                this.clearBars();
+                const count = Math.floor(this.legs * 5 * density);
+                for (let i = 0; i < count; i++) {
+                    const col = Math.floor(Math.random() * (this.legs - 1));
+                    // Keep margins from top/bottom
+                    const y = 0.1 + Math.random() * 0.8;
+                    this.addBar(col, y);
+                }
+            }
+
+            // 追加用（既存の線を維持して追加）
+            addRandom(density = 0.1) {
+                // 本数を計算（最低1本は追加）
+                const count = Math.max(1, Math.floor(this.legs * 5 * density));
+                
+                for (let i = 0; i < count; i++) {
+                    const col = Math.floor(Math.random() * (this.legs - 1));
+                    // Keep margins from top/bottom
+                    const y = 0.1 + Math.random() * 0.8;
+                    this.addBar(col, y);
+                }
+            }
+
+            // Calculate path for a single start point
+            tracePath(startCol) {
+                let currentCol = startCol;
+                let currentY = 0;
+                const path = [{ col: currentCol, y: 0 }];
+
+                // Sort bars by Y
+                const sortedBars = [...this.bars].sort((a, b) => a.y - b.y);
+
+                while (true) {
+                    // Find next bar connected to current column below current Y
+                    const nextBar = sortedBars.find(b => 
+                        b.y > currentY && (b.col === currentCol || b.col === currentCol - 1)
+                    );
+
+                    if (!nextBar) {
+                        // Reached bottom
+                        path.push({ col: currentCol, y: 1 });
+                        break;
+                    }
+
+                    // Move down to bar
+                    path.push({ col: currentCol, y: nextBar.y });
+                    
+                    // Cross over
+                    if (nextBar.col === currentCol) {
+                        currentCol++;
+                    } else {
+                        currentCol--;
+                    }
+                    path.push({ col: currentCol, y: nextBar.y });
+                    currentY = nextBar.y;
+                }
+                return path;
+            }
+        }
+
+        // --- Visual System (Three.js) ---
+        class Visualizer {
+            constructor(container) {
+                this.container = container;
+                this.scene = new THREE.Scene();
+                this.scene.fog = new THREE.FogExp2(0x050510, 0.02);
+
+                this.camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+                this.camera.position.set(0, 0, 15);
+
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.toneMapping = THREE.ReinhardToneMapping;
+                container.appendChild(this.renderer.domElement);
+
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+                this.controls.enableRotate = false; // 回転を無効化
+                this.controls.maxPolarAngle = Math.PI / 1.5; // Prevent going too low under
+                this.controls.minPolarAngle = Math.PI / 6;
+
+                // Lighting
+                const ambient = new THREE.AmbientLight(0x222244);
+                this.scene.add(ambient);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+                dirLight.position.set(5, 10, 7);
+                this.scene.add(dirLight);
+
+                // Grid/Background
+                this.createEnvironment();
+
+                // Groups
+                this.gridGroup = new THREE.Group();
+                this.scene.add(this.gridGroup);
+                this.runnersGroup = new THREE.Group();
+                this.scene.add(this.runnersGroup);
+                this.prizesGroup = new THREE.Group();
+                this.scene.add(this.prizesGroup);
+
+                // State
+                this.legSpacing = 2;
+                this.legHeight = 12;
+                this.offsetY = this.legHeight / 2;
+                this.legs = 0;
+                
+                // Raycaster for interaction
+                this.raycaster = new THREE.Raycaster();
+                this.mouse = new THREE.Vector2();
+                this.plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0); // Click plane
+
+                window.addEventListener('resize', this.onResize.bind(this));
+            }
+
+            createEnvironment() {
+                // Moving starfield
+                const geom = new THREE.BufferGeometry();
+                const count = 2000;
+                const pos = new Float32Array(count * 3);
+                for(let i=0; i<count*3; i++) {
+                    pos[i] = (Math.random() - 0.5) * 50;
+                }
+                geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+                const mat = new THREE.PointsMaterial({ color: 0x88ccff, size: 0.1, transparent: true, opacity: 0.8 });
+                this.stars = new THREE.Points(geom, mat);
+                this.scene.add(this.stars);
+
+                // Floor grid - Make it more neon purple
+                const gridHelper = new THREE.GridHelper(50, 50, 0x4400aa, 0x110022);
+                gridHelper.rotation.x = Math.PI / 2;
+                gridHelper.position.z = -5;
+                this.scene.add(gridHelper);
+            }
+
+            buildGrid(legCount, bars) {
+                this.legs = legCount;
+                // Cleanup
+                while(this.gridGroup.children.length > 0) { 
+                    const obj = this.gridGroup.children[0];
+                    if(obj.geometry) obj.geometry.dispose();
+                    if(obj.material) obj.material.dispose();
+                    this.gridGroup.remove(obj); 
+                }
+                
+                // Centering
+                const totalWidth = (legCount - 1) * this.legSpacing;
+                this.gridGroup.position.x = -totalWidth / 2;
+                this.gridGroup.position.y = this.offsetY; // Top is 0, bottom is -height
+
+                // Materials - Cyberpunk Upgrade
+                // Legs: Neon Cyan Metallic
+                const legMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x001122, 
+                    emissive: 0x00ddee, 
+                    emissiveIntensity: 0.8,
+                    roughness: 0.2, 
+                    metalness: 0.9 
+                });
+                
+                // Bars: Neon Pink/Magenta for high contrast
+                const barMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x330011, 
+                    emissive: 0xff0055, 
+                    emissiveIntensity: 1.5,
+                    roughness: 0.2,
+                    metalness: 0.5
+                });
+                
+                // Hit Area Material (Invisible)
+                const hitMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0 });
+
+                // Vertical Legs
+                for(let i=0; i<legCount; i++) {
+                    const geo = new THREE.CylinderGeometry(0.05, 0.05, this.legHeight, 16); // smoother
+                    const mesh = new THREE.Mesh(geo, legMat);
+                    mesh.position.x = i * this.legSpacing;
+                    mesh.position.y = -this.legHeight / 2;
+                    // Tag for interaction
+                    mesh.userData = { type: 'leg', index: i };
+                    this.gridGroup.add(mesh);
+
+                    // Top Node (Visual) - Glowing White Core
+                    const nodeGeo = new THREE.SphereGeometry(0.3, 16, 16);
+                    const nodeMesh = new THREE.Mesh(nodeGeo, new THREE.MeshStandardMaterial({ 
+                        color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 2 
+                    }));
+                    nodeMesh.position.set(i * this.legSpacing, 0, 0);
+                    this.gridGroup.add(nodeMesh);
+
+                    // Top Node (Hit Area - Larger & Invisible)
+                    const hitGeo = new THREE.SphereGeometry(0.8, 16, 16);
+                    const hitMesh = new THREE.Mesh(hitGeo, hitMat);
+                    hitMesh.position.set(i * this.legSpacing, 0, 0);
+                    hitMesh.userData = { type: 'start', index: i };
+                    this.gridGroup.add(hitMesh);
+
+                    // Bottom Node (End) -> Will place boxes later
+                    const endMesh = nodeMesh.clone();
+                    endMesh.position.set(i * this.legSpacing, -this.legHeight, 0);
+                    this.gridGroup.add(endMesh);
+                }
+
+                // Horizontal Bars
+                bars.forEach(bar => this.createBarMesh(bar, barMat));
+            }
+
+            createBarMesh(bar, material) {
+                const width = this.legSpacing;
+                const geo = new THREE.CylinderGeometry(0.04, 0.04, width, 8); // slightly thicker
+                const mesh = new THREE.Mesh(geo, material);
+                
+                // Position logic: X is between col and col+1, Y is relative to top
+                mesh.position.x = (bar.col * this.legSpacing) + (this.legSpacing / 2);
+                mesh.position.y = -bar.y * this.legHeight;
+                mesh.rotation.z = Math.PI / 2;
+                
+                mesh.userData = { type: 'bar', data: bar };
+                this.gridGroup.add(mesh);
+                return mesh;
+            }
+
+            buildPrizes(prizes) {
+                // Cleanup prizes
+                while(this.prizesGroup.children.length > 0) this.prizesGroup.remove(this.prizesGroup.children[0]);
+
+                const totalWidth = (this.legs - 1) * this.legSpacing;
+                this.prizesGroup.position.x = -totalWidth / 2;
+                this.prizesGroup.position.y = this.offsetY;
+
+                const boxGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+                const boxMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x111111, metalness: 0.9, roughness: 0.1, 
+                    emissive: 0x4400aa, emissiveIntensity: 0.5
+                });
+
+                for(let i=0; i<this.legs; i++) {
+                    const box = new THREE.Mesh(boxGeo, boxMat.clone());
+                    box.position.set(i * this.legSpacing, -this.legHeight - 0.6, 0);
+                    box.rotation.x = Math.PI / 4;
+                    box.rotation.y = Math.PI / 4;
+                    
+                    // Assign prize text
+                    const prizeText = prizes[i] || "スカ"; // 修正：デフォルトを「スカ」に統一
+                    box.userData = { index: i, text: prizeText, opened: false };
+                    
+                    this.prizesGroup.add(box);
+                }
+            }
+
+            spawnRunner(playerIndex, color) {
+                const runner = new THREE.Group();
+                
+                // Core light
+                const geo = new THREE.SphereGeometry(0.2, 16, 16);
+                const mat = new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 5 });
+                const mesh = new THREE.Mesh(geo, mat);
+                runner.add(mesh);
+
+                // Point Light
+                const light = new THREE.PointLight(color, 2, 5);
+                runner.add(light);
+
+                // Trail (BufferGeometry that updates)
+                const trailSize = 40;
+                const trailGeo = new THREE.BufferGeometry();
+                const positions = new Float32Array(trailSize * 3);
+                trailGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                const trailMat = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.7 });
+                const trail = new THREE.Line(trailGeo, trailMat);
+                trail.frustumCulled = false; // Important for updating trails
+                
+                // Add trail to scene (not to runner group, so it trails behind)
+                // Actually, let's keep it simple: Add trail to gridGroup to share coordinate space
+                this.gridGroup.add(trail);
+
+                runner.userData = { 
+                    trail: trail, 
+                    trailPositions: [], 
+                    color: color,
+                    timer: 0 
+                };
+
+                // Set start pos
+                runner.position.x = playerIndex * this.legSpacing;
+                runner.position.y = 0;
+                runner.position.z = 0;
+
+                this.runnersGroup.add(runner);
+                // Adjust group to match grid
+                this.runnersGroup.position.copy(this.gridGroup.position);
+                
+                return runner;
+            }
+
+            getInteractPos(x, y) {
+                this.mouse.x = (x / window.innerWidth) * 2 - 1;
+                this.mouse.y = -(y / window.innerHeight) * 2 + 1;
+                this.raycaster.setFromCamera(this.mouse, this.camera);
+                
+                // Intersect with invisible plane at Z=0 of grid
+                // Grid is at various Z, but main plane is Z=0 local.
+                // Grid world pos Z is 0.
+                const intersects = new THREE.Vector3();
+                this.raycaster.ray.intersectPlane(this.plane, intersects);
+                
+                // Transform world to grid local
+                intersects.sub(this.gridGroup.position);
+                
+                return intersects;
+            }
+
+            // Project 3D position to 2D screen coordinates
+            toScreenPosition(obj) {
+                const vector = new THREE.Vector3();
+                obj.updateMatrixWorld(); // ensure world matrix is up to date
+                vector.setFromMatrixPosition(obj.matrixWorld);
+                vector.project(this.camera);
+
+                return {
+                    x: (vector.x * 0.5 + 0.5) * window.innerWidth,
+                    y: (-(vector.y * 0.5) + 0.5) * window.innerHeight
+                };
+            }
+
+            animate(dt) {
+                // Rotate stars
+                if(this.stars) this.stars.rotation.z += 0.0005;
+
+                // Animate prizes (idle)
+                this.prizesGroup.children.forEach(box => {
+                    if (!box.userData.opened) {
+                        box.rotation.y += 0.01;
+                        box.rotation.x += 0.005;
+                    } else {
+                        // Opened effect
+                        box.scale.lerp(new THREE.Vector3(0.1, 0.1, 0.1), 0.1);
+                    }
+                });
+
+                this.controls.update();
+                this.renderer.render(this.scene, this.camera);
+            }
+
+            onResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        }
+
+        // --- Main Application ---
+        class App {
+            constructor() {
+                this.visualizer = new Visualizer(document.getElementById('canvas-container'));
+                this.amida = null;
+                this.state = 'SETUP'; // SETUP, EDIT, SELECT, RUNNING, RESULT
+                this.players = []; // { index: 0, name: "Name", runner: null, path: [], pathIdx: 0, progress: 0 }
+                this.prizes = [];
+                
+                this.bindUI();
+                this.initializeDefaultPrizes(); // 初期景品をセット
+                this.loop();
+            }
+
+            bindUI() {
+                document.getElementById('btn-init').onclick = () => this.initGame();
+                document.getElementById('btn-back').onclick = () => this.backToSetup();
+                document.getElementById('btn-add-random').onclick = () => {
+                    audio.playAddLine();
+                    this.amida.addRandom(0.1); 
+                    this.visualizer.buildGrid(this.amida.legs, this.amida.bars);
+                };
+                document.getElementById('btn-reset-lines').onclick = () => {
+                    audio.playDeleteLine();
+                    this.amida.clearBars();
+                    this.visualizer.buildGrid(this.amida.legs, this.amida.bars);
+                };
+                document.getElementById('btn-fix').onclick = () => this.enterSelectMode();
+                document.getElementById('btn-start').onclick = () => this.startRun();
+                document.getElementById('btn-restart').onclick = () => location.reload();
+
+                // Click interaction on canvas
+                window.addEventListener('pointerdown', (e) => this.onCanvasClick(e));
+
+                // Prize List Buttons
+                document.getElementById('btn-add-prize').onclick = () => {
+                    audio.playClick();
+                    this.addPrizeInput();
+                };
+
+                // Modal
+                this.nameModal = document.getElementById('player-modal');
+                this.playerNameInput = document.getElementById('input-player-name');
+                this.pendingPlayerSlot = -1;
+
+                document.getElementById('btn-cancel-name').onclick = () => this.nameModal.classList.add('hidden');
+                document.getElementById('btn-confirm-name').onclick = () => this.registerPlayer();
+            }
+
+            initializeDefaultPrizes() {
+                // デフォルトでいくつか入力欄を作っておく
+                ["特賞", "1等", "2等", "3等"].forEach(p => this.addPrizeInput(p));
+            }
+
+            addPrizeInput(value = "") {
+                const container = document.getElementById('prizes-list');
+                const div = document.createElement('div');
+                div.className = "flex gap-2 animate-fade-in";
+                div.innerHTML = `
+                    <input type="text" class="prize-input flex-grow bg-black/50 border border-gray-700 rounded p-2 text-white" placeholder="景品名" value="${value}">
+                    <button class="btn-remove-prize text-red-400 hover:text-red-200 hover:bg-red-900/30 p-2 border border-red-900/50 rounded transition-colors" title="削除">✕</button>
+                `;
+                
+                // 削除ボタンの処理
+                div.querySelector('.btn-remove-prize').onclick = () => {
+                    div.remove();
+                    audio.playDeleteLine();
+                };
+
+                container.appendChild(div);
+                
+                // 自動スクロール
+                container.scrollTop = container.scrollHeight;
+            }
+
+            backToSetup() {
+                audio.playClick();
+                this.state = 'SETUP';
+                
+                // Clear scene safely
+                if (this.amida) {
+                    this.amida.clearBars();
+                    this.visualizer.buildGrid(0, []);
+                    this.visualizer.buildPrizes([]);
+                }
+                
+                // Reset players and UI
+                this.players.forEach(p => {
+                    if (p.label) p.label.remove();
+                });
+                this.players = [];
+                
+                if (this.prizeLabels) {
+                    this.prizeLabels.forEach(p => p.div.remove());
+                    this.prizeLabels = [];
+                }
+
+                // UI Toggle
+                document.getElementById('control-panel').classList.add('hidden');
+                document.getElementById('setup-panel').classList.remove('hidden');
+                
+                // Reset button visibility for next time
+                document.getElementById('btn-add-random').classList.remove('hidden');
+                document.getElementById('btn-reset-lines').classList.remove('hidden');
+                document.getElementById('btn-fix').classList.remove('hidden');
+                document.getElementById('btn-start').classList.add('hidden');
+                document.getElementById('btn-back').classList.remove('hidden');
+            }
+
+            initGame() {
+                audio.playClick();
+                const legs = parseInt(document.getElementById('input-legs').value);
+                
+                // 景品の収集
+                const prizeInputs = document.querySelectorAll('.prize-input');
+                const prizes = Array.from(prizeInputs).map(input => input.value.trim()).filter(val => val !== "");
+
+                const errorDiv = document.getElementById('error-message');
+                errorDiv.classList.add('hidden');
+
+                // ★修正: バリデーション
+                if (prizes.length > legs) {
+                    errorDiv.innerText = `エラー: 景品の数(${prizes.length})がくじの本数(${legs})を超えています。くじの本数を増やすか、景品を減らしてください。`;
+                    errorDiv.classList.remove('hidden');
+                    // 視覚的にもわかりやすく音を鳴らす
+                    audio.playTone(150, 'sawtooth', 0.3);
+                    return;
+                }
+                
+                // ★修正: 足りない分は「スカ」で埋める（ランダムワードではない）
+                while(prizes.length < legs) {
+                    prizes.push("スカ");
+                }
+                
+                // Shuffle prizes
+                for (let i = prizes.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [prizes[i], prizes[j]] = [prizes[j], prizes[i]];
+                }
+                this.prizes = prizes;
+
+                this.amida = new AmidaCore(legs, 10);
+                this.amida.randomize(0.4);
+
+                this.visualizer.buildGrid(legs, this.amida.bars);
+                this.visualizer.buildPrizes(prizes);
+
+                // Initialize Players slots
+                this.players = [];
+
+                document.getElementById('setup-panel').classList.add('hidden');
+                document.getElementById('control-panel').classList.remove('hidden');
+                
+                this.state = 'EDIT';
+            }
+
+            onCanvasClick(e) {
+                if (e.target.tagName !== 'CANVAS') return;
+
+                // Raycasterの更新
+                this.visualizer.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                this.visualizer.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                this.visualizer.raycaster.setFromCamera(this.visualizer.mouse, this.visualizer.camera);
+
+                if (this.state === 'EDIT') {
+                    const pos = this.visualizer.getInteractPos(e.clientX, e.clientY);
+                    
+                    const colFloat = pos.x / this.visualizer.legSpacing;
+                    const yFloat = -pos.y / this.visualizer.legHeight;
+
+                    // Check bounds
+                    if (yFloat > 0 && yFloat < 1 && colFloat > -0.5 && colFloat < this.amida.legs - 0.5) {
+                        const col = Math.floor(colFloat);
+                        if (col >= 0 && col < this.amida.legs - 1) {
+                            if (this.amida.removeBarNear(col, yFloat)) {
+                                audio.playDeleteLine();
+                            } else {
+                                this.amida.addBar(col, yFloat);
+                                audio.playAddLine();
+                            }
+                            this.visualizer.buildGrid(this.amida.legs, this.amida.bars);
+                        }
+                    }
+                }
+                else if (this.state === 'SELECT') {
+                    const intersects = this.visualizer.raycaster.intersectObjects(this.visualizer.gridGroup.children);
+                    const startNode = intersects.find(obj => obj.object.userData.type === 'start');
+                    
+                    if (startNode) {
+                        const idx = startNode.object.userData.index;
+                        if (!this.players.find(p => p.index === idx)) {
+                            this.pendingPlayerSlot = idx;
+                            this.playerNameInput.value = `Player ${this.players.length + 1}`;
+                            this.nameModal.classList.remove('hidden');
+                            this.playerNameInput.focus();
+                        }
+                    }
+                }
+            }
+
+            enterSelectMode() {
+                this.state = 'SELECT';
+                audio.playClick();
+                document.getElementById('status-text').innerText = "PLAYER SELECT";
+                document.getElementById('instruction-text').innerText = `上部の白い玉をクリックして、参加者を登録してください。(0/${this.amida.legs})`;
+                document.getElementById('btn-add-random').classList.add('hidden');
+                document.getElementById('btn-reset-lines').classList.add('hidden');
+                document.getElementById('btn-fix').classList.add('hidden');
+                document.getElementById('btn-back').classList.add('hidden');
+            }
+
+            registerPlayer() {
+                const name = this.playerNameInput.value || "Unknown";
+                const idx = this.pendingPlayerSlot;
+                
+                // Colors HSL
+                const hue = (idx * 137.5) % 360;
+                const color = new THREE.Color(`hsl(${hue}, 100%, 50%)`);
+
+                // Create runner mesh (but don't start)
+                const runner = this.visualizer.spawnRunner(idx, color);
+                
+                this.players.push({
+                    index: idx,
+                    name: name,
+                    runner: runner,
+                    color: color
+                });
+
+                this.createNameLabel(idx, name, color);
+                
+                this.nameModal.classList.add('hidden');
+                audio.playAddLine();
+
+                // Update UI logic
+                const currentCount = this.players.length;
+                const maxCount = this.amida.legs;
+                
+                if (currentCount >= maxCount) {
+                    document.getElementById('instruction-text').innerText = "準備完了！STARTボタンを押して開始してください。";
+                    document.getElementById('btn-start').classList.remove('hidden');
+                    // Ready sound
+                    audio.playTone(660, 'sine', 0.1);
+                    setTimeout(() => audio.playTone(880, 'sine', 0.2), 100);
+                } else {
+                    document.getElementById('instruction-text').innerText = `上部の白い玉をクリックして、参加者を登録してください。(${currentCount}/${maxCount})`;
+                }
+            }
+
+            createNameLabel(idx, name, color) {
+                const div = document.createElement('div');
+                div.className = 'world-label';
+                div.innerHTML = `<div class="player-name" style="border-color:${color.getStyle()}; color:${color.getStyle()}">${name}</div>`;
+                document.getElementById('labels-layer').appendChild(div);
+                
+                // Store ref to update position
+                const playerObj = this.players.find(p => p.index === idx);
+                playerObj.label = div;
+            }
+
+            createPrizeLabel(idx, text) {
+                const div = document.createElement('div');
+                div.className = 'world-label prize-label';
+                div.innerText = text;
+                document.getElementById('labels-layer').appendChild(div);
+                return div;
+            }
+
+            startRun() {
+                if (this.players.length < this.amida.legs) {
+                    alert("全員の登録が必要です！");
+                    return;
+                }
+
+                this.state = 'RUNNING';
+                document.getElementById('control-panel').classList.add('hidden'); // Hide UI for cinematic view
+                audio.playStart();
+
+                // Calculate paths
+                this.players.forEach(p => {
+                    // Get raw path points {col, y}
+                    const rawPath = this.amida.tracePath(p.index);
+                    
+                    // Convert to world vectors for smooth lerping
+                    p.pathVectors = [];
+                    // Start
+                    p.pathVectors.push(new THREE.Vector3(rawPath[0].col * this.visualizer.legSpacing, 0, 0));
+
+                    for(let i=1; i<rawPath.length; i++) {
+                        const prev = rawPath[i-1];
+                        const curr = rawPath[i];
+                        
+                        // Vertical move to current Y
+                        const vertY = -curr.y * this.visualizer.legHeight;
+                        const vertX = prev.col * this.visualizer.legSpacing;
+                        p.pathVectors.push(new THREE.Vector3(vertX, vertY, 0));
+
+                        // If col changed, horizontal move
+                        if (curr.col !== prev.col) {
+                            const horizX = curr.col * this.visualizer.legSpacing;
+                            p.pathVectors.push(new THREE.Vector3(horizX, vertY, 0));
+                        }
+                    }
+                    
+                    // Final move to bottom if not there (should be handled by logic, but ensuring)
+                    const lastVec = p.pathVectors[p.pathVectors.length-1];
+                    if (lastVec.y > -this.visualizer.legHeight) {
+                        p.pathVectors.push(new THREE.Vector3(lastVec.x, -this.visualizer.legHeight, 0));
+                    }
+
+                    p.currentSegment = 0;
+                    p.segmentT = 0;
+                    p.speed = 4 + Math.random(); // Add slight variance for excitement
+                    p.finished = false;
+                });
+            }
+
+            update(dt) {
+                if (this.state === 'RUNNING') {
+                    let allFinished = true;
+                    
+                    // Update labels position
+                    this.players.forEach(p => {
+                        const screenPos = this.visualizer.toScreenPosition(p.runner);
+                        p.label.style.left = screenPos.x + 'px';
+                        p.label.style.top = (screenPos.y - 40) + 'px'; // Offset above head
+                        
+                        if (p.finished) return;
+
+                        allFinished = false;
+                        
+                        // Move runner along pathVectors
+                        const p1 = p.pathVectors[p.currentSegment];
+                        const p2 = p.pathVectors[p.currentSegment + 1];
+
+                        if (!p2) {
+                            p.finished = true;
+                            this.onPlayerFinish(p);
+                            return;
+                        }
+
+                        const dist = p1.distanceTo(p2);
+                        const moveDist = p.speed * dt;
+                        
+                        // Simple linear interpolation
+                        if (dist <= 0.001) {
+                            p.currentSegment++;
+                            p.segmentT = 0;
+                        } else {
+                            p.segmentT += moveDist / dist;
+                            
+                            if (p.segmentT >= 1) {
+                                // Segment done
+                                p.segmentT = 0;
+                                p.currentSegment++;
+                                // Play turn sound if this was a horizontal move
+                                if (p1.x !== p2.x) {
+                                    audio.playMove((p.index * 50));
+                                }
+                            }
+                        }
+                        
+                        // Get current pos
+                        const currentP1 = p.pathVectors[p.currentSegment];
+                        const currentP2 = p.pathVectors[p.currentSegment + 1];
+                        
+                        if (currentP2) {
+                            p.runner.position.lerpVectors(currentP1, currentP2, Math.min(p.segmentT, 1));
+                        } else {
+                            p.runner.position.copy(currentP1);
+                        }
+
+                        // Update Trail
+                        this.updateTrail(p);
+                    });
+
+                    if (allFinished && this.state !== 'RESULT') {
+                        this.state = 'RESULT';
+                        document.getElementById('control-panel').classList.remove('hidden');
+                        document.getElementById('status-text').innerText = "FINISHED!";
+                        document.getElementById('instruction-text').innerText = "";
+                        document.getElementById('btn-restart').classList.remove('hidden');
+                        document.getElementById('btn-start').classList.add('hidden');
+                        document.getElementById('btn-back').classList.remove('hidden'); // allow exit
+                        audio.playStart(); // Fanfare again
+                    }
+                } 
+                else if (this.state === 'SELECT' || this.state === 'RESULT') {
+                    // Update labels only
+                    this.players.forEach(p => {
+                        const screenPos = this.visualizer.toScreenPosition(p.runner);
+                        p.label.style.left = screenPos.x + 'px';
+                        p.label.style.top = (screenPos.y - 40) + 'px';
+                    });
+                    
+                    // Update Prize labels if they exist
+                    if (this.prizeLabels) {
+                        this.prizeLabels.forEach(pl => {
+                            // Find corresponding box
+                            const box = this.visualizer.prizesGroup.children.find(b => b.userData.index === pl.idx);
+                            if (box) {
+                                const screenPos = this.visualizer.toScreenPosition(box);
+                                pl.div.style.left = screenPos.x + 'px';
+                                pl.div.style.top = (screenPos.y + 30) + 'px';
+                            }
+                        });
+                    }
+                }
+            }
+
+            updateTrail(p) {
+                const trail = p.runner.userData.trail;
+                const positions = trail.geometry.attributes.position.array;
+                
+                // Shift positions
+                for (let i = positions.length - 1; i > 2; i -= 3) {
+                    positions[i] = positions[i - 3];
+                    positions[i-1] = positions[i - 4];
+                    positions[i-2] = positions[i - 5];
+                }
+                positions[0] = p.runner.position.x;
+                positions[1] = p.runner.position.y;
+                positions[2] = p.runner.position.z;
+
+                trail.geometry.attributes.position.needsUpdate = true;
+            }
+
+            onPlayerFinish(p) {
+                // Find which leg we ended up at
+                // X position determines leg index
+                const endLegIndex = Math.round(p.runner.position.x / this.visualizer.legSpacing);
+                
+                // Find the box
+                const box = this.visualizer.prizesGroup.children.find(b => b.userData.index === endLegIndex);
+                if (box) {
+                    box.userData.opened = true;
+                    box.material.emissive.setHex(0xffaa00);
+                    box.material.emissiveIntensity = 2;
+
+                    // Create Prize Label
+                    if (!this.prizeLabels) this.prizeLabels = [];
+                    const labelDiv = this.createPrizeLabel(endLegIndex, box.userData.text);
+                    this.prizeLabels.push({ idx: endLegIndex, div: labelDiv });
+                    
+                    setTimeout(() => {
+                        labelDiv.classList.add('revealed');
+                        audio.playWin();
+                    }, 200);
+                }
+            }
+
+            loop() {
+                const clock = new THREE.Clock();
+                const tick = () => {
+                    const dt = clock.getDelta();
+                    this.update(dt);
+                    this.visualizer.animate(dt);
+                    requestAnimationFrame(tick);
+                }
+                tick();
+            }
+        }
+
+        // Start
+        window.onload = () => {
+            const app = new App();
+        };
+
+    </script>
+</body>
+</html>
